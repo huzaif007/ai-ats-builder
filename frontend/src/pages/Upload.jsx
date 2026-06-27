@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { api } from '../api/client';
 
 export default function Upload(){
   const [title, setTitle] = useState('');
@@ -34,7 +34,7 @@ export default function Upload(){
         const rawJsonData = JSON.parse(event.target.result);
         setStatus('File parsed. Analyzing and saving to database...');
 
-        const response = await axios.post('https://ai-ats-gateway.onrender.com/api/resumes', {
+        const response = await api.post('/api/resumes', {
           title: title,
           linkedinData: rawJsonData
         });

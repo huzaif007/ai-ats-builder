@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../api/client';
 
 export default function Dashboard(){
   const [resumes, setResumes] = useState([]);
@@ -9,7 +9,7 @@ export default function Dashboard(){
   useEffect(() => {
     const fetchResumes = async () => {
       try {
-        const response = await axios.get('https://ai-ats-gateway.onrender.com/api/resumes');
+        const response = await api.get('/api/resumes');
         setResumes(response.data);
       } catch (error) {
         console.error("Error fetching resumes:", error);

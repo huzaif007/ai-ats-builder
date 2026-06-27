@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
 import { useReactToPrint } from 'react-to-print';
 import AtsTemplate from '../components/AtsTemplate';
+import { api } from '../api/client';
 
 export default function ResumeView() {
   const { id } = useParams();
@@ -21,7 +21,7 @@ export default function ResumeView() {
   useEffect(() => {
     const fetchResume = async () => {
       try {
-        const response = await axios.get(`https://ai-ats-gateway.onrender.com/api/resumes/${id}`);
+        const response = await api.get(`/api/resumes/${id}`);
         setResumeData(response.data);
       } catch (error) {
         console.error("Error fetching resume:", error);
@@ -35,8 +35,8 @@ export default function ResumeView() {
 
     setIsCalculating(true);
     try {
-      const response = await axios.get(`https://ai-ats-gateway.onrender.com/api/resumes/${id}/match`, {
-        jobDescription
+      const response = await api.get(`/api/resumes/${id}/match`, {
+        params: { jobDescription }
       });
       
       setMatchResult(response.data);
