@@ -1,0 +1,23 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+
+# Python dependencies
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Environment Variables (CRITICAL)
+.env
+.env.*
+!.env.example
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build directories
+dist/
+build/

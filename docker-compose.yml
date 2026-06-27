@@ -1,0 +1,17 @@
+services:
+  ai-engine:
+    build: ./ai-engine
+    container_name: ats-ai-engine
+    # No ports needed here, it talks internally to the gateway
+    env_file:
+      - ./ai-engine/.env
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./backend
+    container_name: ats-api-gateway
+    ports:
+      - "5001:5001" # This maps YOUR Mac port 5001 to the container port 5001
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped

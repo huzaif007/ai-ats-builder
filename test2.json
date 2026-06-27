@@ -1,0 +1,79 @@
+{
+"profile": {
+"fullName": "Rahul Sharma",
+"headline": "Backend Software Engineer | Java | Spring Boot | AWS",
+"location": "Pune, Maharashtra, India",
+"email": "[rahul.sharma@example.com](mailto:rahul.sharma@example.com)",
+"phone": "+91-9988776655",
+"linkedin": "https://linkedin.com/in/rahulsharma",
+"github": "https://github.com/rahulsharma",
+"summary": "Backend Engineer with 4 years of experience building scalable APIs and cloud-native applications. Strong expertise in Java, Spring Boot, distributed systems, SQL databases, and AWS. Passionate about system design, reliability, and performance optimization."
+},
+"experience": [
+{
+"title": "Backend Software Engineer",
+"company": "FinEdge Technologies",
+"startDate": "2022-02",
+"endDate": "Present",
+"description": [
+"Built microservices handling over 5 million transactions per month.",
+"Reduced API latency by 35% through query optimization and caching.",
+"Designed event-driven systems using Kafka.",
+"Implemented monitoring and alerting using Prometheus and Grafana."
+]
+},
+{
+"title": "Software Engineer",
+"company": "CloudOps Solutions",
+"startDate": "2020-07",
+"endDate": "2022-01",
+"description": [
+"Developed REST APIs using Java and Spring Boot.",
+"Worked with PostgreSQL and Redis for data-intensive applications.",
+"Automated deployments using Docker and Kubernetes."
+]
+}
+],
+"education": [
+{
+"institution": "Vellore Institute of Technology",
+"degree": "B.Tech",
+"field": "Computer Science",
+"cgpa": 8.8,
+"graduationYear": 2020
+}
+],
+"skills": [
+"Java",
+"Spring Boot",
+"Microservices",
+"Kafka",
+"AWS",
+"Docker",
+"Kubernetes",
+"PostgreSQL",
+"Redis",
+"System Design",
+"REST APIs",
+"Git",
+"CI/CD"
+],
+"projects": [
+{
+"name": "Payment Processing Platform",
+"description": "Developed scalable payment infrastructure processing 100K+ transactions daily.",
+"technologies": ["Java", "Spring Boot", "Kafka", "PostgreSQL"]
+},
+{
+"name": "Cloud Monitoring Dashboard",
+"description": "Built centralized monitoring solution for distributed systems.",
+"technologies": ["AWS", "Prometheus", "Grafana"]
+}
+],
+"certifications": [
+{
+"name": "AWS Certified Solutions Architect Associate",
+"year": 2024
+}
+]
+}

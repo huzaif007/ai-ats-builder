@@ -1,0 +1,102 @@
+{
+  "profile": {
+    "fullName": "Arjun Mehta",
+    "headline": "Software Engineer | Full Stack Developer | React, Node.js, AWS",
+    "location": "Bangalore, Karnataka, India",
+    "email": "arjun.mehta.dev@example.com",
+    "phone": "+91-9876543210",
+    "linkedin": "https://www.linkedin.com/in/arjunmehta",
+    "github": "https://github.com/arjunmehta",
+    "portfolio": "https://arjunmehta.dev",
+    "summary": "Software Engineer with 3+ years of experience building scalable web applications and distributed systems. Proficient in JavaScript, TypeScript, React, Node.js, and cloud technologies. Passionate about creating performant user experiences and solving complex engineering problems."
+  },
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "TechNova Solutions",
+      "location": "Bangalore, India",
+      "startDate": "2023-01",
+      "endDate": "Present",
+      "description": [
+        "Developed and maintained microservices handling over 2 million API requests daily.",
+        "Built React and Next.js applications improving page load speed by 40%.",
+        "Designed CI/CD pipelines using GitHub Actions and Docker.",
+        "Collaborated with cross-functional teams to deliver enterprise SaaS features."
+      ]
+    },
+    {
+      "title": "Associate Software Engineer",
+      "company": "CloudMatrix Technologies",
+      "location": "Hyderabad, India",
+      "startDate": "2021-07",
+      "endDate": "2022-12",
+      "description": [
+        "Implemented REST APIs using Node.js and Express.",
+        "Optimized SQL queries reducing response times by 35%.",
+        "Created reusable frontend components using React and TypeScript."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "National Institute of Technology Karnataka",
+      "degree": "Bachelor of Technology",
+      "field": "Computer Science and Engineering",
+      "startYear": 2017,
+      "endYear": 2021,
+      "cgpa": 8.7
+    }
+  ],
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Next.js",
+    "Node.js",
+    "Express.js",
+    "MongoDB",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Git",
+    "CI/CD",
+    "System Design",
+    "Data Structures",
+    "Algorithms"
+  ],
+  "projects": [
+    {
+      "name": "Realtime Collaboration Platform",
+      "description": "Built a collaborative document editor using React, Node.js, WebSockets, and MongoDB supporting 10,000+ users.",
+      "technologies": ["React", "Node.js", "MongoDB", "Socket.io"]
+    },
+    {
+      "name": "Cloud Cost Optimizer",
+      "description": "Developed analytics dashboards to monitor and optimize AWS spending.",
+      "technologies": ["Next.js", "TypeScript", "AWS", "PostgreSQL"]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Developer – Associate",
+      "issuer": "Amazon Web Services",
+      "year": 2024
+    }
+  ],
+  "achievements": [
+    "Mentored 5 junior developers.",
+    "Won company-wide Hackathon 2024.",
+    "Published technical articles with 50,000+ total views."
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "proficiency": "Professional"
+    },
+    {
+      "name": "Hindi",
+      "proficiency": "Native"
+    }
+  ]
+}
