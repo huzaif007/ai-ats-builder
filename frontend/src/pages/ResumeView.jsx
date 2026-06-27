@@ -21,7 +21,7 @@ export default function ResumeView() {
   useEffect(() => {
     const fetchResume = async () => {
       try {
-        const response = await api.get(`resumes/${id}`);
+        const response = await api.get(`/api/resumes/${id}`);
         setResumeData(response.data);
       } catch (error) {
         console.error("Error fetching resume:", error);
@@ -35,8 +35,8 @@ export default function ResumeView() {
 
     setIsCalculating(true);
     try {
-      const response = await api.get(`/api/resumes/${id}/match`, {
-        params: { jobDescription }
+      const response = await api.post(`/api/resumes/${id}/match`, {
+        jobDescription
       });
       
       setMatchResult(response.data);
