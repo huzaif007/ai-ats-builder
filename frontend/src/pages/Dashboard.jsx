@@ -9,7 +9,7 @@ export default function Dashboard(){
   useEffect(() => {
     const fetchResumes = async () => {
       try {
-        const response = await axios.get('http://localhost:5001/api/resumes');
+        const response = await axios.get('https://ai-ats-gateway.onrender.com/api/resumes');
         setResumes(response.data);
       } catch (error) {
         console.error("Error fetching resumes:", error);

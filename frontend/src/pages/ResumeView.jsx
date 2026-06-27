@@ -21,7 +21,7 @@ export default function ResumeView() {
   useEffect(() => {
     const fetchResume = async () => {
       try {
-        const response = await axios.get(`http://localhost:5001/api/resumes/${id}`);
+        const response = await axios.get(`https://ai-ats-gateway.onrender.com/api/resumes/${id}`);
         setResumeData(response.data);
       } catch (error) {
         console.error("Error fetching resume:", error);
