@@ -72,7 +72,7 @@ router.post('/:id/match', async (req, res) => {
         console.log("Cache Miss: Calling Python Semantic Engine...");
         
         // Using the Docker network service name 'ai-engine'
-        const aiResponse = await axios.post('http://ai-engine:8000/api/ai/analyze', {
+        const aiResponse = await axios.post(`${process.env.AI_ENGINE_URL}/api/ai/analyze`, {
             resume_text: resumeText,
             job_description: jobDescription
         });
