@@ -35,7 +35,7 @@ export default function ResumeView() {
 
     setIsCalculating(true);
     try {
-      const response = await axios.post(`http://localhost:5001/api/resumes/${id}/match`, {
+      const response = await axios.get(`https://ai-ats-gateway.onrender.com/api/resumes/${id}/match`, {
         jobDescription
       });
       
