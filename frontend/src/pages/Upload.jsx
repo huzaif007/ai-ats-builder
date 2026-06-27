@@ -8,58 +8,50 @@ export default function Upload(){
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const navigate = useNavigate(); // This lets us programmatically change pages
+  const navigate = useNavigate();
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
-    // Clear status if they pick a new file
     if (status) setStatus('');
   };
 
+  // UNIFIED UPLOAD HANDLER
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !title) {
-      setStatus('Please provide a title and select a JSON file.');
+      setStatus('Please provide a title and select a file.');
       return;
     }
 
     setIsLoading(true);
-    setStatus('Parsing file locally...');
+    setStatus('Uploading and processing file...');
 
-    // Native FileReader API
-    const reader = new FileReader();
+    const formData = new FormData();
+    formData.append('title', title);
+    // MUST match 'file' key from upload.single('file') in backend
+    formData.append('file', file); 
 
-    reader.onload = async (event) => {
-      try {
-        const rawJsonData = JSON.parse(event.target.result);
-        setStatus('File parsed. Analyzing and saving to database...');
+    try {
+      const response = await api.post('/resumes', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-        const response = await api.post('/api/resumes', {
-          title: title,
-          linkedinData: rawJsonData
-        });
-
-        if (response.status === 201) {
-          setStatus('Success! Redirecting to dashboard...');
-          // Automatically route the user back to the dashboard after 1 second
-          setTimeout(() => {
-            navigate('/');
-          }, 1000);
-        }
-      } catch (error) {
-        console.error('Upload failed:', error);
-        setStatus('Error parsing JSON or connecting to server.');
-        setIsLoading(false);
+      if (response.status === 201) {
+        setStatus('Success! Redirecting to dashboard...');
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
       }
-    };
-
-    reader.readAsText(file);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setStatus('Error parsing file or connecting to server.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 bg-zinc-50 font-sans">
-
-      {/* Back to Dashboard Link */}
       <div className="w-full max-w-md mb-6">
         <Link to="/" className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors inline-flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -70,10 +62,9 @@ export default function Upload(){
       </div>
 
       <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-zinc-200/80 p-8">
-
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-2">Upload Profile</h1>
-          <p className="text-sm text-zinc-500">Import your LinkedIn data export to generate an ATS-friendly resume.</p>
+          <p className="text-sm text-zinc-500">Import your LinkedIn JSON or a PDF resume to generate a match.</p>
         </div>
 
         <form onSubmit={handleUpload} className="space-y-6">
@@ -89,10 +80,10 @@ export default function Upload(){
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-2">LinkedIn Export (.json)</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">Resume File (.json or .pdf)</label>
             <input
               type="file"
-              accept=".json"
+              accept=".json, .pdf"
               onChange={handleFileChange}
               className="w-full text-sm text-zinc-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 file:transition-colors file:cursor-pointer cursor-pointer border border-zinc-200 rounded-xl p-1 bg-zinc-50"
             />
@@ -107,7 +98,6 @@ export default function Upload(){
           </button>
         </form>
 
-        {/* Status Message Display */}
         {status && (
           <div className={`mt-6 p-4 rounded-xl text-center text-sm font-medium ${status.includes('Error') || status.includes('Please') ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
             {status}

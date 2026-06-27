@@ -2,10 +2,11 @@ const express = require('express');
 const axios = require('axios');
 const Redis = require('ioredis');
 const Resume = require('../models/Resume');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 
+const upload = multer({storage: multer.memoryStorage()});
 const router = express.Router();
-
-// Initialize Upstash Redis Client
 const redis = new Redis(process.env.UPSTASH_REDIS_URL);
 
 // 1. DASHBOARD ROUTE
@@ -29,22 +30,39 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// 3. UPLOAD ROUTE
-router.post('/', async (req, res) => {
+// 3. UNIFIED UPLOAD ROUTE (Handles both JSON and PDF)
+router.post('/', upload.single('file'), async (req, res) => {
     try {
-        const { title, linkedinData } = req.body;
-        if (!title || !linkedinData) return res.status(400).json({ message: 'Missing data' });
+        const { title } = req.body;
+        const file = req.file;
+
+        if (!title || !file) return res.status(400).json({ message: 'Missing title or file' });
+
+        let parsedText = '';
+        let linkedinData = null;
+
+        // Check file type and process accordingly
+        if (file.mimetype === 'application/pdf') {
+            const data = await pdfParse(file.buffer);
+            parsedText = data.text;
+        } else if (file.mimetype === 'application/json') {
+            const jsonString = file.buffer.toString('utf8');
+            linkedinData = JSON.parse(jsonString);
+        } else {
+            return res.status(400).json({ message: 'Unsupported file type. Please upload a PDF or JSON file.' });
+        }
         
-        const newResume = new Resume({ title, linkedinData });
+        const newResume = new Resume({ title, linkedinData, parsedText });
         const savedResume = await newResume.save();
         
         res.status(201).json({ message: 'Success', data: savedResume });
     } catch (error) {
-        res.status(500).json({ message: 'Server Error' });
+        console.error("Upload Error:", error);
+        res.status(500).json({ message: 'Server Error processing upload' });
     }
 });
 
-// 4. AI MATCH ROUTE (Now powered by Cloud Redis)
+// 4. AI MATCH ROUTE
 router.post('/:id/match', async (req, res) => {
     try {
         const resume = await Resume.findById(req.params.id);
@@ -53,25 +71,30 @@ router.post('/:id/match', async (req, res) => {
         const { jobDescription } = req.body;
         if (!jobDescription) return res.status(400).json({ message: 'Missing JD' });
 
-        // Generate Cache Key using Base64 (Bypassing the crypto bug)
         const hashStr = resume._id.toString() + jobDescription;
         const cacheKey = Buffer.from(hashStr).toString('base64');
 
-        // Check Cloud Redis for the Cache
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
             console.log("Upstash Cache Hit: Bypassing AI Engine");
             return res.status(200).json(JSON.parse(cachedData));
         }
 
-        const profile = resume.linkedinData || {};
-        const skillsArray = profile.skills ? profile.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [];
-        const expArray = profile.experience ? profile.experience.map(e => `${e.title} at ${e.companyName}`).filter(Boolean) : [];
-        const resumeText = `Skills: ${skillsArray.join(', ')}. Experience: ${expArray.join('; ')}`;
+        let resumeText = '';
+
+        // DYNAMIC TEXT EXTRACTION: Check if PDF or JSON
+        if (resume.parsedText && resume.parsedText.trim() !== '') {
+            resumeText = resume.parsedText; // Use PDF text
+        } else {
+            // Fallback to JSON logic
+            const profile = resume.linkedinData || {};
+            const skillsArray = profile.skills ? profile.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [];
+            const expArray = profile.experience ? profile.experience.map(e => `${e.title} at ${e.companyName}`).filter(Boolean) : [];
+            resumeText = `Skills: ${skillsArray.join(', ')}. Experience: ${expArray.join('; ')}`;
+        }
 
         console.log("Cache Miss: Calling Python Semantic Engine...");
         
-        // Using the Docker network service name 'ai-engine'
         const aiResponse = await axios.post(`${process.env.AI_ENGINE_URL}/api/ai/analyze`, {
             resume_text: resumeText,
             job_description: jobDescription
@@ -83,7 +106,6 @@ router.post('/:id/match', async (req, res) => {
             aiFeedback: aiResponse.data.ai_insights
         };
 
-        // Save to Cloud Redis (Expires in 24 Hours to save space)
         await redis.set(cacheKey, JSON.stringify(finalPayload), 'EX', 86400);
         
         res.status(200).json(finalPayload);
