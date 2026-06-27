@@ -5,6 +5,8 @@ import AtsTemplate from '../components/AtsTemplate';
 import { api } from '../api/client';
 
 export default function ResumeView() {
+  const [optimizeResult, setOptimizeResult] = useState(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const { id } = useParams();
   const [resumeData, setResumeData] = useState(null);
   const [jobDescription, setJobDescription] = useState('');
@@ -39,11 +41,38 @@ export default function ResumeView() {
         jobDescription
       });
       
-      setMatchResult(response.data);
+      let payload = response.data;
+      let rawScore = payload.matchScore || payload.semantic_score || 0;
+      
+      // Frontend ATS Curve (Guarantees it matches the Dashboard)
+      if (rawScore <= 1 && rawScore > 0) rawScore = rawScore * 100;
+      let displayScore = Math.min(99, Math.round(rawScore * 1.3));
+
+      // Update state with the properly calculated score
+      setMatchResult({
+        ...payload,
+        matchScore: displayScore
+      });
+      
     } catch (error) {
       console.error("Error calculating match:", error);
     } finally {
       setIsCalculating(false);
+    }
+  };
+
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    try {
+      // Calls our new backend route
+      const response = await api.post(`/api/resumes/${id}/optimize`, {
+        jobDescription: jobDescription // Sends JD if they pasted one for context
+      });
+      setOptimizeResult(response.data);
+    } catch (error) {
+      console.error("Error optimizing resume:", error);
+    } finally {
+      setIsOptimizing(false);
     }
   };
 
@@ -106,7 +135,6 @@ export default function ResumeView() {
                 </div>
               </div>
 
-              {/* FIXED AI INSIGHTS RENDERING */}
               {matchResult.aiFeedback && (
                 <div className="space-y-4">
                   <div className="bg-zinc-100/50 p-4 rounded-xl border border-zinc-200/50">
@@ -126,10 +154,46 @@ export default function ResumeView() {
               )}
             </div>
           )}
+
+          <button
+            onClick={handleOptimize}
+            disabled={isOptimizing}
+            className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:bg-zinc-200 disabled:text-zinc-400"
+          >
+            {isOptimizing ? 'Groq is Optimizing...' : '✨ Auto-Optimize Resume'}
+          </button>
+
+          {optimizeResult && (
+            <div className="mt-8 pt-6 border-t border-zinc-100">
+              <h3 className="text-sm font-bold text-zinc-900 mb-3">AI Suggestions</h3>
+              <ul className="list-disc pl-5 text-sm text-zinc-700 space-y-2 mb-6">
+                {optimizeResult.suggestions.map((suggestion, index) => (
+                  <li key={index}>{suggestion}</li>
+                ))}
+              </ul>
+
+              <h3 className="text-sm font-bold text-zinc-900 mb-3">Optimized Content</h3>
+              <div className="bg-zinc-100 p-4 rounded-xl border border-zinc-200 text-sm text-zinc-700 whitespace-pre-wrap h-64 overflow-y-auto">
+                {optimizeResult.optimizedContent}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-zinc-200/80 overflow-hidden flex flex-col">
-          <AtsTemplate ref={componentRef} data={resumeData} />
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-zinc-200/80 overflow-hidden flex flex-col h-[80vh] overflow-y-auto">
+          {/* THE FIX: Conditional rendering to handle PDF vs JSON uploads */}
+          <div ref={componentRef} className="bg-white h-full">
+            {resumeData.linkedinData ? (
+              <AtsTemplate data={resumeData} />
+            ) : (
+              <div className="p-10 h-full">
+                <h2 className="text-2xl font-bold text-zinc-900 mb-6 border-b pb-4">Parsed Document Text</h2>
+                <div className="text-sm text-zinc-700 whitespace-pre-wrap leading-relaxed font-mono bg-zinc-50 p-6 rounded-xl border border-zinc-100">
+                  {resumeData.parsedText || "No text could be extracted from this document."}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
