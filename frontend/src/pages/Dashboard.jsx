@@ -9,7 +9,7 @@ export default function Dashboard(){
   useEffect(() => {
     const fetchResumes = async () => {
       try {
-        const response = await api.get('/api/resumes');
+        const response = await api.get('/resumes');
         setResumes(response.data);
       } catch (error) {
         console.error("Error fetching resumes:", error);

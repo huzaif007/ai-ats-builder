@@ -34,7 +34,7 @@ export default function Upload(){
         const rawJsonData = JSON.parse(event.target.result);
         setStatus('File parsed. Analyzing and saving to database...');
 
-        const response = await api.post('/api/resumes', {
+        const response = await api.post('resumes', {
           title: title,
           linkedinData: rawJsonData
         });

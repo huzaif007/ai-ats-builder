@@ -21,7 +21,7 @@ export default function ResumeView() {
   useEffect(() => {
     const fetchResume = async () => {
       try {
-        const response = await api.get(`/api/resumes/${id}`);
+        const response = await api.get(`resumes/${id}`);
         setResumeData(response.data);
       } catch (error) {
         console.error("Error fetching resume:", error);
