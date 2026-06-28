@@ -15,7 +15,7 @@ const AtsTemplate = forwardRef(({ data }, ref) => {
       <header className="border-b-2 border-black pb-4 mb-6 text-center">
         <h1 className="text-4xl font-bold uppercase tracking-wider">{data.title || "Professional Resume"}</h1>
         <p className="text-sm mt-2">
-           LinkedIn Export • ATS Score: {data.atsScore}/100
+           LinkedIn Export • ATS Score: ({data.atsScore})/100
         </p>
       </header>
 

@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const Redis = require("ioredis");
 const Resume = require("../models/Resume");
+const { calculateMatch } = require("../utils/jobMatcher");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 
@@ -9,7 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 const redis = new Redis(process.env.UPSTASH_REDIS_URL);
 
-const Groq = require('groq-sdk');
+const Groq = require("groq-sdk");
 // Initialize Groq (it automatically looks for process.env.GROQ_API_KEY)
 const groq = new Groq();
 
@@ -105,7 +106,10 @@ router.post("/:id/match", async (req, res) => {
 
     // DYNAMIC TEXT EXTRACTION: Check if PDF or JSON
     if (resume.parsedText && resume.parsedText.trim() !== "") {
-      resumeText = resume.parsedText; // Use PDF text
+      resumeText = resume.parsedText.trim();
+      if (resumeText.length > 5000) {
+        resumeText = resumeText.slice(0, 5000) + "\n...";
+      }
     } else {
       // Fallback to JSON logic
       const profile = resume.linkedinData || {};
@@ -124,38 +128,67 @@ router.post("/:id/match", async (req, res) => {
 
     console.log("Cache Miss: Calling Python Semantic Engine...");
 
-    const aiResponse = await axios.post(
-      `${process.env.AI_ENGINE_URL}/api/ai/analyze`,
-      {
-        resume_text: resumeText,
-        job_description: jobDescription,
-      },
-    );
+    let aiResponse;
+    try {
+      aiResponse = await axios.post(
+        `${process.env.AI_ENGINE_URL}/api/ai/analyze`,
+        {
+          resume_text: resumeText,
+          job_description: jobDescription,
+        },
+        { timeout: 10000 },
+      );
+    } catch (error) {
+      console.warn(
+        "AI engine unreachable, falling back to local matcher:",
+        error.message,
+      );
+      const localMatch = calculateMatch(resume, jobDescription);
+      const fallbackScore = localMatch.matchScore;
+      const boostedScore = Math.min(99, Math.round(fallbackScore * 1.2));
+
+      const finalPayload = {
+        matchScore: fallbackScore,
+        atsScore: boostedScore,
+        matchingSkills: localMatch.matchingSkills,
+        aiFeedback: {
+          feedback: "Analyzed locally because the AI engine was unavailable.",
+          missing_keywords: [],
+          improvement:
+            "Try again later when the AI engine is available for richer feedback.",
+        },
+      };
+
+      resume.atsScore = boostedScore;
+      await resume.save();
+      await redis.set(cacheKey, JSON.stringify(finalPayload), "EX", 86400);
+
+      return res.status(200).json(finalPayload);
+    }
 
     // 1. FIX THE LOW SCORES (The ATS Curve)
-        let rawScore = aiResponse.data.semantic_score;
-        
-        // If the Python engine returns a decimal (e.g., 0.65), convert it to 65
-        if (rawScore <= 1) rawScore = rawScore * 100; 
+    let rawScore = aiResponse.data.semantic_score;
 
-        // Apply a generous curve. Vector matches are strict, so we boost it by ~30%
-        // and cap it at 99% (so it never looks fake by hitting exactly 100%)
-        let boostedScore = Math.min(99, Math.round(rawScore * 1.3));
+    // If the Python engine returns a decimal (e.g., 0.65), convert it to 65
+    if (rawScore <= 1) rawScore = rawScore * 100;
 
+    // Apply a generous curve. Vector matches are strict, so we boost it by ~30%
+    // and cap it at 99% (so it never looks fake by hitting exactly 100%)
+    let boostedScore = Math.min(99, Math.round(rawScore * 1.75));
 
     const finalPayload = {
       matchScore: aiResponse.data.semantic_score,
+      atsScore: boostedScore,
       matchingSkills: [],
       aiFeedback: aiResponse.data.ai_insights,
     };
 
-    // 2. FIX THE DASHBOARD (Save to MongoDB)
-        resume.atsScore = boostedScore;
-        await resume.save(); // <--- This was missing! Now the Dashboard will see it.
+    // Persist the boosted ATS score so the dashboard reflects the latest result
+    resume.atsScore = boostedScore;
+    await resume.save();
 
-        // Save to Cloud Redis (Expires in 24 Hours to save space)
-        await redis.set(cacheKey, JSON.stringify(finalPayload), 'EX', 86400);
-
+    // Save to Cloud Redis (Expires in 24 Hours to save space)
+    await redis.set(cacheKey, JSON.stringify(finalPayload), "EX", 86400);
 
     res.status(200).json(finalPayload);
   } catch (error) {
@@ -164,31 +197,38 @@ router.post("/:id/match", async (req, res) => {
   }
 });
 
-
 // 5. AI OPTIMIZATION ROUTE (Powered by Groq)
-router.post('/:id/optimize', async (req, res) => {
-    try {
-        const resume = await Resume.findById(req.params.id);
-        if (!resume) return res.status(404).json({ message: 'Resume not found' });
+router.post("/:id/optimize", async (req, res) => {
+  try {
+    const resume = await Resume.findById(req.params.id);
+    if (!resume) return res.status(404).json({ message: "Resume not found" });
 
-        const { jobDescription } = req.body;
+    const { jobDescription } = req.body;
 
-        // Extract text depending on whether it was a PDF or JSON
-        let resumeText = '';
-        if (resume.parsedText && resume.parsedText.trim() !== '') {
-            resumeText = resume.parsedText;
-        } else {
-            const profile = resume.linkedinData || {};
-            const skillsArray = profile.skills ? profile.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [];
-            const expArray = profile.experience ? profile.experience.map(e => `${e.title} at ${e.companyName}`).filter(Boolean) : [];
-            resumeText = `Skills: ${skillsArray.join(', ')}. Experience: ${expArray.join('; ')}`;
-        }
+    // Extract text depending on whether it was a PDF or JSON
+    let resumeText = "";
+    if (resume.parsedText && resume.parsedText.trim() !== "") {
+      resumeText = resume.parsedText;
+    } else {
+      const profile = resume.linkedinData || {};
+      const skillsArray = profile.skills
+        ? profile.skills
+            .map((s) => (typeof s === "string" ? s : s.name))
+            .filter(Boolean)
+        : [];
+      const expArray = profile.experience
+        ? profile.experience
+            .map((e) => `${e.title} at ${e.companyName}`)
+            .filter(Boolean)
+        : [];
+      resumeText = `Skills: ${skillsArray.join(", ")}. Experience: ${expArray.join("; ")}`;
+    }
 
-        console.log("Calling Groq API for Optimization...");
+    console.log("Calling Groq API for Optimization...");
 
-        // The Prompt Engineering
-        const systemPrompt = `
-        You are an expert ATS Resume Writer. Your task is to review the provided resume text and optimize it${jobDescription ? ' for the provided job description' : ''}.
+    // The Prompt Engineering
+    const systemPrompt = `
+        You are an expert ATS Resume Writer. Your task is to review the provided resume text and optimize it${jobDescription ? " for the provided job description" : ""}.
         
         Respond ONLY with a valid JSON object matching this exact structure:
         {
@@ -198,49 +238,47 @@ router.post('/:id/optimize', async (req, res) => {
         Do not include any intro or outro text, just the JSON.
         `;
 
-        const userPrompt = `
+    const userPrompt = `
         Resume Text:
         ${resumeText}
         
-        ${jobDescription ? `Target Job Description:\n${jobDescription}` : ''}
+        ${jobDescription ? `Target Job Description:\n${jobDescription}` : ""}
         `;
 
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            model: 'llama-3.3-70b-versatile', // Using LLaMA 3 70B for high-quality reasoning
-            temperature: 0.4,
-            response_format: { type: "json_object" } // Forces Groq to return clean JSON
-        });
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      model: "llama-3.3-70b-versatile", // Using LLaMA 3 70B for high-quality reasoning
+      temperature: 0.4,
+      response_format: { type: "json_object" }, // Forces Groq to return clean JSON
+    });
 
-        // Parse Groq's JSON response
-        const result = JSON.parse(chatCompletion.choices[0].message.content);
-        
-        res.status(200).json(result);
+    // Parse Groq's JSON response
+    const result = JSON.parse(chatCompletion.choices[0].message.content);
 
-    } catch (error) {
-        console.error("Optimization Error:", error);
-        res.status(500).json({ message: 'Server Error during optimization' });
-    }
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Optimization Error:", error);
+    res.status(500).json({ message: "Server Error during optimization" });
+  }
 });
 
-
 // 6. DELETE RESUME ROUTE
-router.delete('/:id', async (req, res) => {
-    try {
-        const deletedResume = await Resume.findByIdAndDelete(req.params.id);
-        
-        if (!deletedResume) {
-            return res.status(404).json({ message: 'Resume not found' });
-        }
-        
-        res.status(200).json({ message: 'Resume deleted successfully' });
-    } catch (error) {
-        console.error("Delete Error:", error);
-        res.status(500).json({ message: 'Server Error during deletion' });
+router.delete("/:id", async (req, res) => {
+  try {
+    const deletedResume = await Resume.findByIdAndDelete(req.params.id);
+
+    if (!deletedResume) {
+      return res.status(404).json({ message: "Resume not found" });
     }
+
+    res.status(200).json({ message: "Resume deleted successfully" });
+  } catch (error) {
+    console.error("Delete Error:", error);
+    res.status(500).json({ message: "Server Error during deletion" });
+  }
 });
 
 module.exports = router;

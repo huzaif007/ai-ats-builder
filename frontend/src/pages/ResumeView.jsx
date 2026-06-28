@@ -11,6 +11,7 @@ export default function ResumeView() {
   const [resumeData, setResumeData] = useState(null);
   const [jobDescription, setJobDescription] = useState('');
   const [matchResult, setMatchResult] = useState(null);
+  const [matchError, setMatchError] = useState('');
   const [isCalculating, setIsCalculating] = useState(false);
 
   const componentRef = useRef(null);
@@ -35,27 +36,31 @@ export default function ResumeView() {
   const handleMatch = async () => {
     if (!jobDescription.trim()) return;
 
+    setMatchError('');
     setIsCalculating(true);
     try {
       const response = await api.post(`/api/resumes/${id}/match`, {
         jobDescription
       });
-      
+
       let payload = response.data;
-      let rawScore = payload.matchScore || payload.semantic_score || 0;
-      
+      let rawScore = payload.matchScore ?? payload.semantic_score ?? 0;
+
       // Frontend ATS Curve (Guarantees it matches the Dashboard)
       if (rawScore <= 1 && rawScore > 0) rawScore = rawScore * 100;
-      let displayScore = Math.min(99, Math.round(rawScore * 1.3));
+      let displayScore = Math.min(99, Math.round(rawScore * 1.75));
 
       // Update state with the properly calculated score
       setMatchResult({
         ...payload,
         matchScore: displayScore
       });
-      
+
+      // Keep resume ATS score synced for any later page refresh or local render
+      setResumeData((prev) => (prev ? { ...prev, atsScore: displayScore } : prev));
     } catch (error) {
       console.error("Error calculating match:", error);
+      setMatchError(error.response?.data?.message || "Unable to analyze match. Please try again.");
     } finally {
       setIsCalculating(false);
     }
@@ -125,6 +130,12 @@ export default function ResumeView() {
           >
             {isCalculating ? 'Scanning...' : 'Analyze Match'}
           </button>
+
+          {matchError && (
+            <div className="mt-4 rounded-xl bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">
+              {matchError}
+            </div>
+          )}
 
           {matchResult && (
             <div className="mt-8 pt-6 border-t border-zinc-100">
