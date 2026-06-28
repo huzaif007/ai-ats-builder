@@ -1,4 +1,12 @@
 {
+  "name": "ats-builder",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm install && npm run dev",
+    "vercel-build": "cd frontend && npm install && npm run build"
+  },
   "dependencies": {
     "crypto": "^1.0.1",
     "groq-sdk": "^1.3.0",
