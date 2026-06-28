@@ -1,0 +1,7 @@
+backend/
+ai-engine/
+docker-compose.yml
+Dockerfile
+.git
+.env
+*.md
