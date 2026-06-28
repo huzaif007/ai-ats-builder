@@ -11,8 +11,8 @@ const router = express.Router();
 const redis = new Redis(process.env.UPSTASH_REDIS_URL);
 
 const Groq = require("groq-sdk");
-// Initialize Groq (it automatically looks for process.env.GROQ_API_KEY)
-const groq = new Groq();
+// Initialize Groq lazily when the /optimize endpoint is called
+let groq = null;
 
 async function extractPdfText(buffer) {
   if (typeof pdfParse === "function") {
@@ -225,6 +225,17 @@ router.post("/:id/optimize", async (req, res) => {
     }
 
     console.log("Calling Groq API for Optimization...");
+
+    // Initialize Groq on first use (lazy initialization)
+    if (!groq) {
+      if (!process.env.GROQ_API_KEY) {
+        return res.status(500).json({
+          message:
+            "Groq API key not configured. Please set GROQ_API_KEY environment variable on Render.",
+        });
+      }
+      groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    }
 
     // The Prompt Engineering
     const systemPrompt = `
