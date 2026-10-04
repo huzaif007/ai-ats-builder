@@ -48,7 +48,7 @@ export default function ResumeView() {
 
       // Frontend ATS Curve (Guarantees it matches the Dashboard)
       if (rawScore <= 1 && rawScore > 0) rawScore = rawScore * 100;
-      let displayScore = Math.min(99, Math.round(rawScore * 1.75));
+      let displayScore = Math.min(99, Math.round(rawScore * 1.197183));
 
       // Update state with the properly calculated score
       setMatchResult({
