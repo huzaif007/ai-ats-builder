@@ -6,6 +6,7 @@ import { api } from '../api/client';
 
 export default function ResumeView() {
   const [optimizeResult, setOptimizeResult] = useState(null);
+  const [optimizeError, setOptimizeError] = useState('');
   const [isOptimizing, setIsOptimizing] = useState(false);
   const { id } = useParams();
   const [resumeData, setResumeData] = useState(null);
@@ -60,13 +61,19 @@ export default function ResumeView() {
       setResumeData((prev) => (prev ? { ...prev, atsScore: displayScore } : prev));
     } catch (error) {
       console.error("Error calculating match:", error);
-      setMatchError(error.response?.data?.message || "Unable to analyze match. Please try again.");
+      setMatchError(
+        error.response?.data?.message ||
+          error.response?.data?.detail ||
+          "Unable to analyze match. Please try again.",
+      );
     } finally {
       setIsCalculating(false);
     }
   };
 
   const handleOptimize = async () => {
+    setOptimizeError('');
+    setOptimizeResult(null);
     setIsOptimizing(true);
     try {
       // Calls our new backend route
@@ -76,6 +83,11 @@ export default function ResumeView() {
       setOptimizeResult(response.data);
     } catch (error) {
       console.error("Error optimizing resume:", error);
+      setOptimizeError(
+        error.response?.data?.message ||
+          error.response?.data?.detail ||
+          "Unable to optimize resume. Please try again.",
+      );
     } finally {
       setIsOptimizing(false);
     }
@@ -173,6 +185,12 @@ export default function ResumeView() {
           >
             {isOptimizing ? 'Groq is Optimizing...' : '✨ Auto-Optimize Resume'}
           </button>
+
+          {optimizeError && (
+            <div className="mt-4 rounded-xl bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">
+              {optimizeError}
+            </div>
+          )}
 
           {optimizeResult && (
             <div className="mt-8 pt-6 border-t border-zinc-100">

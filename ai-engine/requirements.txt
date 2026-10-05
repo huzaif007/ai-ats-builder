@@ -5,5 +5,4 @@ httpx==0.27.2
 python-dotenv==1.0.0
 pydantic==2.5.2
 chromadb==0.4.22
-sentence-transformers==2.2.2
 numpy<2.0.0 # bcuz we were getting an AttributeError: np.float_ was removed in the NumPy 2.0 release. Use np.float64 instead.
