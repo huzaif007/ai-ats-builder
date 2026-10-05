@@ -1,18 +1,20 @@
-# use a lightweight node image
-FROM node:20-alpine
+# Start from the official Node.js 24 image with Alpine Linux
+FROM node:24-alpine
 
-# set the working directory
-WORKDIR /app
+# Set /app as the working directory inside the container
+WORKDIR /app 
 
-# copy package files and install dependencies
+# Copy the backend package files into the container
 COPY package*.json ./
-RUN npm install
 
-# copy the rest of backend code
-COPY . . 
+# Install production dependencies using lockfile
+RUN npm ci --omit=dev
 
-# expose the node server port
+# Copy the rest of backend source code into the container
+COPY . .
+
+# Document that the backend listens on port 5001 inside the container
 EXPOSE 5001
 
-# cmd to boot the api gateway
+# Run the backend server when the container starts
 CMD ["node", "server.js"]

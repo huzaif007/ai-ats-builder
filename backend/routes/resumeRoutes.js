@@ -2,7 +2,6 @@ const express = require("express");
 const axios = require("axios");
 const Redis = require("ioredis");
 const Resume = require("../models/Resume");
-const { calculateMatch } = require("../utils/jobMatcher");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 
@@ -13,6 +12,7 @@ const redis = new Redis(process.env.UPSTASH_REDIS_URL);
 const Groq = require("groq-sdk");
 // Initialize Groq lazily when the /optimize endpoint is called
 let groq = null;
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 async function extractPdfText(buffer) {
   if (typeof pdfParse === "function") {
@@ -35,6 +35,7 @@ router.get("/", async (req, res) => {
     const resumes = await Resume.find().sort({ createdAt: -1 });
     res.status(200).json(resumes);
   } catch (error) {
+    console.error("Resume list error:", error);
     res.status(500).json({ message: "Server Error" });
   }
 });
@@ -94,7 +95,7 @@ router.post("/:id/match", async (req, res) => {
     if (!jobDescription) return res.status(400).json({ message: "Missing JD" });
 
     const hashStr = resume._id.toString() + jobDescription;
-    const cacheKey = Buffer.from(hashStr).toString("base64");
+    const cacheKey = `match-v2:${Buffer.from(hashStr).toString("base64")}`;
 
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -136,45 +137,43 @@ router.post("/:id/match", async (req, res) => {
           resume_text: resumeText,
           job_description: jobDescription,
         },
-        { timeout: 10000 },
+        { timeout: 600000 },
       );
     } catch (error) {
-      console.warn(
-        "AI engine unreachable, falling back to local matcher:",
-        error.message,
-      );
-      const localMatch = calculateMatch(resume, jobDescription);
-      const fallbackScore = localMatch.matchScore;
-      const boostedScore = Math.min(99, Math.round(fallbackScore * 1.2));
-
-      const finalPayload = {
-        matchScore: fallbackScore,
-        atsScore: boostedScore,
-        matchingSkills: localMatch.matchingSkills,
-        aiFeedback: {
-          feedback: "Analyzed locally because the AI engine was unavailable.",
-          missing_keywords: [],
-          improvement:
-            "Try again later when the AI engine is available for richer feedback.",
-        },
-      };
-
-      resume.atsScore = boostedScore;
-      await resume.save();
-      await redis.set(cacheKey, JSON.stringify(finalPayload), "EX", 86400);
-
-      return res.status(200).json(finalPayload);
+      console.error("AI analysis request failed:", error.message);
+      const statusCode =
+        error.code === "ECONNABORTED" || error.code === "ETIMEDOUT" ? 504 : 502;
+      return res.status(statusCode).json({
+        message:
+          statusCode === 504
+            ? "AI analysis timed out. Please try again."
+            : "AI analysis service failed. Check the AI Engine logs.",
+      });
     }
 
-    // 1. FIX THE LOW SCORES (The ATS Curve)
     let rawScore = aiResponse.data.semantic_score;
 
-    // If the Python engine returns a decimal (e.g., 0.65), convert it to 65
+    if (!Number.isFinite(rawScore) || rawScore < 0 || rawScore > 100) {
+      console.error("AI Engine returned an invalid semantic score.");
+      return res.status(502).json({
+        message: "AI analysis service returned an invalid score.",
+      });
+    }
+
     if (rawScore <= 1) rawScore = rawScore * 100;
 
-    // Apply a generous curve. Vector matches are strict, so we boost it by ~30%
-    // and cap it at 99% (so it never looks fake by hitting exactly 100%)
     let boostedScore = Math.min(99, Math.round(rawScore * 1.75));
+
+    if (
+      !aiResponse.data.ai_insights ||
+      typeof aiResponse.data.ai_insights !== "object" ||
+      Array.isArray(aiResponse.data.ai_insights)
+    ) {
+      console.error("AI Engine returned invalid analysis insights.");
+      return res.status(502).json({
+        message: "AI analysis service returned an invalid response.",
+      });
+    }
 
     const finalPayload = {
       matchScore: aiResponse.data.semantic_score,
@@ -261,7 +260,7 @@ router.post("/:id/optimize", async (req, res) => {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile", // Using LLaMA 3 70B for high-quality reasoning
+      model: GROQ_MODEL,
       temperature: 0.4,
       response_format: { type: "json_object" }, // Forces Groq to return clean JSON
     });
@@ -271,8 +270,16 @@ router.post("/:id/optimize", async (req, res) => {
 
     res.status(200).json(result);
   } catch (error) {
-    console.error("Optimization Error:", error);
-    res.status(500).json({ message: "Server Error during optimization" });
+    console.error("Optimization Error:", error.message);
+    let message = "Groq optimization failed. Check the backend logs.";
+    if (error.status === 401) {
+      message = "Groq rejected the API key. Check GROQ_API_KEY in backend/.env.";
+    } else if (error.status === 404) {
+      message = "The configured Groq model is unavailable. Check GROQ_MODEL.";
+    } else if (error.status === 429) {
+      message = "Groq rate limit reached. Please try again later.";
+    }
+    res.status(502).json({ message });
   }
 });
 
