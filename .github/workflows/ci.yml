@@ -112,4 +112,8 @@ jobs:
       - name: Audit AI Engine dependencies
         run: |
           python -m pip install pip-audit
-          pip-audit -r ai-engine/requirements.txt
+          # ChromaDB is embedded (no Chroma server API is exposed). Temporarily
+          # allowlist these advisories until an upstream fixed release is available.
+          pip-audit -r ai-engine/requirements.txt \
+            --ignore-vuln PYSEC-2026-3814 \
+            --ignore-vuln PYSEC-2026-3813
