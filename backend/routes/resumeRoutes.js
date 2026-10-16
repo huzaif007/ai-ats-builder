@@ -95,7 +95,7 @@ router.post("/:id/match", async (req, res) => {
     if (!jobDescription) return res.status(400).json({ message: "Missing JD" });
 
     const hashStr = resume._id.toString() + jobDescription;
-    const cacheKey = `match-v2:${Buffer.from(hashStr).toString("base64")}`;
+    const cacheKey = `match-v3:${Buffer.from(hashStr).toString("base64")}`;
 
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -176,7 +176,7 @@ router.post("/:id/match", async (req, res) => {
     }
 
     const finalPayload = {
-      matchScore: aiResponse.data.semantic_score,
+      matchScore: boostedScore,
       atsScore: boostedScore,
       matchingSkills: [],
       aiFeedback: aiResponse.data.ai_insights,
