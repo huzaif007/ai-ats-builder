@@ -44,12 +44,8 @@ export default function ResumeView() {
         jobDescription
       });
 
-      let payload = response.data;
-      let rawScore = payload.matchScore ?? payload.semantic_score ?? 0;
-
-      // Frontend ATS Curve (Guarantees it matches the Dashboard)
-      if (rawScore <= 1 && rawScore > 0) rawScore = rawScore * 100;
-      let displayScore = Math.min(99, Math.round(rawScore * 1.197183));
+      const payload = response.data;
+      const displayScore = payload.atsScore ?? payload.matchScore ?? payload.semantic_score ?? 0;
 
       // Update state with the properly calculated score
       setMatchResult({
