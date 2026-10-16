@@ -5,7 +5,10 @@ const Resume = require("../models/Resume");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 const router = express.Router();
 const redis = new Redis(process.env.UPSTASH_REDIS_URL);
 
@@ -32,7 +35,7 @@ async function extractPdfText(buffer) {
 // 1. DASHBOARD ROUTE
 router.get("/", async (req, res) => {
   try {
-    const resumes = await Resume.find().sort({ createdAt: -1 });
+    const resumes = await Resume.find({ owner: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(resumes);
   } catch (error) {
     console.error("Resume list error:", error);
@@ -43,7 +46,7 @@ router.get("/", async (req, res) => {
 // 2. SINGLE RESUME ROUTE
 router.get("/:id", async (req, res) => {
   try {
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, owner: req.user._id });
     if (!resume) return res.status(404).json({ message: "Resume not found" });
     res.status(200).json(resume);
   } catch (error) {
@@ -75,7 +78,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       });
     }
 
-    const newResume = new Resume({ title, linkedinData, parsedText });
+    const newResume = new Resume({ title, linkedinData, parsedText, owner: req.user._id });
     const savedResume = await newResume.save();
 
     res.status(201).json({ message: "Success", data: savedResume });
@@ -88,7 +91,7 @@ router.post("/", upload.single("file"), async (req, res) => {
 // 4. AI MATCH ROUTE
 router.post("/:id/match", async (req, res) => {
   try {
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, owner: req.user._id });
     if (!resume) return res.status(404).json({ message: "Resume not found" });
 
     const { jobDescription } = req.body;
@@ -199,7 +202,7 @@ router.post("/:id/match", async (req, res) => {
 // 5. AI OPTIMIZATION ROUTE (Powered by Groq)
 router.post("/:id/optimize", async (req, res) => {
   try {
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, owner: req.user._id });
     if (!resume) return res.status(404).json({ message: "Resume not found" });
 
     const { jobDescription } = req.body;
@@ -286,7 +289,10 @@ router.post("/:id/optimize", async (req, res) => {
 // 6. DELETE RESUME ROUTE
 router.delete("/:id", async (req, res) => {
   try {
-    const deletedResume = await Resume.findByIdAndDelete(req.params.id);
+    const deletedResume = await Resume.findOneAndDelete({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!deletedResume) {
       return res.status(404).json({ message: "Resume not found" });
