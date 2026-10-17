@@ -64,7 +64,7 @@ export default function Upload(){
       <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-zinc-200/80 p-8">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-2">Upload Profile</h1>
-          <p className="text-sm text-zinc-500">Import your LinkedIn JSON or a PDF resume to generate a match. Your uploads are private to your account.</p>
+          <p className="text-sm text-zinc-500">Import your LinkedIn JSON or a PDF resume to generate a match.</p>
         </div>
 
         <form onSubmit={handleUpload} className="space-y-6">
