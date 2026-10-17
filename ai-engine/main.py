@@ -1,73 +1,70 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
 from pydantic import BaseModel
 import os
 import json
+import logging
+from threading import Lock
+from uuid import uuid4
 import chromadb
+from chromadb.config import Settings
 from dotenv import load_dotenv
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load environment variables
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
 app = FastAPI(title="ATS AI Engine")
 
-# The Bouncer (CORS) - Allowing all for local dev integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize Groq Client
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
-# Initialize ChromaDB (In-Memory for blazing fast local development)
-chroma_client = chromadb.Client()
+chroma_client = chromadb.Client(Settings(anonymized_telemetry=False))
 
-# Create a fresh collection using Cosine Distance for accurate 0-100% math
 collection = chroma_client.get_or_create_collection(
-    name="ats_semantic_v2", 
-    metadata={"hnsw:space": "cosine"} 
+    name="ats_semantic_v2",
+    metadata={"hnsw:space": "cosine"},
 )
+collection_lock = Lock()
 
-# Define the strict Data Payload Structure
+
 class MatchRequest(BaseModel):
     resume_text: str
     job_description: str
 
+
 @app.post("/api/ai/analyze")
-async def analyze_resume(request: MatchRequest):
+def analyze_resume(request: MatchRequest):
+    request_id = str(uuid4())
     try:
-        # 1. THE VECTOR EMBEDDING (ChromaDB)
-        # We clear the collection for each new request to keep it stateless
-        if collection.count() > 0:
-            collection.delete(ids=["jd_1"])
-            
-        # Add the Job Description to the Vector Space
-        collection.add(
-            documents=[request.job_description],
-            ids=["jd_1"]
-        )
+        with collection_lock:
+            collection.add(
+                documents=[request.job_description],
+                ids=[request_id],
+                metadatas=[{"request_id": request_id}],
+            )
 
-        # Query the Vector Space using the Resume
-        results = collection.query(
-            query_texts=[request.resume_text],
-            n_results=1
-        )
-        
-        # Chroma returns a "distance" score based on Cosine similarity
-        # We mathematically convert this into a 0-100% score.
-        distance = results['distances'][0][0]
-        semantic_score = max(0, min(100, int((1 - distance) * 100)))
+            results = collection.query(
+                query_texts=[request.resume_text],
+                n_results=1,
+                where={"request_id": request_id},
+            )
 
-        # DEBUGGING: Print the math to the Python terminal
-        print(f"📊 AI MATH -> Raw Distance: {distance} | Final Score: {semantic_score}%")
+            distance = results["distances"][0][0]
+            semantic_score = max(0, min(100, int((1 - distance) * 100)))
+            collection.delete(ids=[request_id])
 
-        # 2. THE GENERATIVE FEEDBACK (Groq LLM)
+        logger.info("Semantic similarity calculated: %s%%", semantic_score)
         prompt = f"""
         You are an expert ATS system. The semantic match score is {semantic_score}%.
         Resume: {request.resume_text}
@@ -79,24 +76,35 @@ async def analyze_resume(request: MatchRequest):
         3. "improvement": One highly specific rewrite suggestion.
         """
 
-        # Call the Groq API
         chat_completion = groq_client.chat.completions.create(
             messages=[
                 {"role": "system", "content": "Output valid JSON only."},
                 {"role": "user", "content": prompt}
             ],
-            model="llama-3.3-70b-versatile", 
+            model=groq_model,
             response_format={"type": "json_object"},
         )
 
-        # Parse the AI's response
-        ai_data = json.loads(chat_completion.choices[0].message.content)
+        response_content = chat_completion.choices[0].message.content
+        if not response_content:
+            raise ValueError("Groq returned an empty response")
+        ai_data = json.loads(response_content)
+        if not isinstance(ai_data, dict):
+            raise ValueError("Groq returned an invalid JSON object")
 
-        # 3. Return the unified Enterprise Payload
         return {
             "semantic_score": semantic_score,
             "ai_insights": ai_data
         }
 
     except Exception as e:
-        return {"error": str(e)}    
+        try:
+            with collection_lock:
+                collection.delete(ids=[request_id])
+        except Exception:
+            logger.exception("Failed to clean up ChromaDB request data")
+        logger.exception("AI analysis failed")
+        raise HTTPException(
+            status_code=502,
+            detail="AI analysis failed. Check AI Engine logs.",
+        ) from e
